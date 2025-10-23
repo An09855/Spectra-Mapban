@@ -43,11 +43,15 @@ function getNextBanPickAction(format, currentStage, currentTeam, mapsSelected) {
         bo5: [
             { stage: 'ban', team: -1 },   // Customizable ban
             { stage: 'ban', team: -1 },   // Customizable ban
-            { stage: 'pick', team: -1 },  // Customizable pick and side
-            { stage: 'pick', team: -1 },  // Customizable pick and side
-            { stage: 'pick', team: -1 },  // Customizable pick and side
-            { stage: 'pick', team: -1 },  // Customizable pick and side
-            { stage: 'decider', team: -1 }// Customizable side for decider
+            { stage: 'pick', team: -1 },
+            { stage: 'side', team: -1 },  // Customizable pick and side
+            { stage: 'pick', team: -1 },
+            { stage: 'side', team: -1 },  // Customizable pick and side
+            { stage: 'pick', team: -1 },
+            { stage: 'side', team: -1 },  // Customizable pick and side
+            { stage: 'pick', team: -1 },
+            { stage: 'side', team: -1 },  // Customizable pick and side
+            { stage: 'pick', team: -1 }// Customizable side for decider
         ]
     };
 

@@ -125,10 +125,6 @@
                     <label>Tricode:</label>
                     <input type="text" id="team1Tricode" class="form-control" value="T1">
                 </div>
-                <div class="mb-3">
-                    <label>Logo URL:</label>
-                    <input type="text" id="team1Url" class="form-control" value="/assets/misc/icon.webp">
-                </div>
             </div>
 
             <div class="col-md-6 mb-4">
@@ -141,10 +137,6 @@
                     <label>Tricode:</label>
                     <input type="text" id="team2Tricode" class="form-control" value="T2">
                 </div>
-                <div class="mb-3">
-                    <label>Logo URL:</label>
-                    <input type="text" id="team2Url" class="form-control" value="/assets/misc/icon.webp">
-                </div>
             </div>
         </div>
 
@@ -156,7 +148,8 @@
                     <select id="format" class="form-control">
                         <option value="bo1">Best of 1</option>
                         <option value="bo3" selected>Best of 3</option>
-                        <option value="bo5">Best of 5</option>
+                        <option value="bo5_ww">Best of 5 (W vs W)</option>
+                        <option value="bo5_wl">Best of 5 (W vs L)</option>
                     </select>
                 </div>
                 <div class="mb-3">
@@ -203,7 +196,7 @@
                 { stage: 'ban', team: 1, description: 'Team 2 bans (Final)' },   // 7
                 { stage: 'pick', team: 1, description: 'Team 1 picks map' }      // 8 - Decider Pick (Team 1 picks map)
             ],
-            bo5: [
+            bo5_ww: [
                 { stage: 'ban', team: 0, description: 'Team 1 bans' },
                 { stage: 'ban', team: 1, description: 'Team 2 bans' },
                 { stage: 'pick', team: 0, description: 'Team 1 picks' },
@@ -214,7 +207,20 @@
                 { stage: 'side', team: 1, description: 'Team 2 picks side' },
                 { stage: 'pick', team: 1, description: 'Team 2 picks' },
                 { stage: 'side', team: 0, description: 'Team 1 picks side' },
-                { stage: 'decider', team: 0, description: 'Decider map - Team 1 picks side' }
+                { stage: 'pick', team: 1, description: 'Decider map - Team 2 picks side' }
+            ],
+            bo5_wl: [
+                { stage: 'ban', team: 0, description: 'Team 1 bans' },
+                { stage: 'ban', team: 0, description: 'Team 1 bans' },
+                { stage: 'pick', team: 0, description: 'Team 1 picks' },
+                { stage: 'side', team: 1, description: 'Team 2 picks side' },
+                { stage: 'pick', team: 1, description: 'Team 2 picks' },
+                { stage: 'side', team: 0, description: 'Team 1 picks side' },
+                { stage: 'pick', team: 0, description: 'Team 1 picks' },
+                { stage: 'side', team: 1, description: 'Team 2 picks side' },
+                { stage: 'pick', team: 1, description: 'Team 2 picks' },
+                { stage: 'side', team: 0, description: 'Team 1 picks side' },
+                { stage: 'pick', team: 1, description: 'Decider map - Team 2 picks side' }
             ]
         };
 
@@ -398,29 +404,28 @@
                 }
             } else if (currentStage === 'pick') {
                 
-                // --- LOGIC XỬ LÝ MAP DECIDER (BO3) ---
-                const pickedMapsCount = selectedMaps.filter(m => m.pickedBy !== undefined).length;
-                const isDeciderPick = format === 'bo3' && pickedMapsCount === 2; 
+                // --- LOGIC XỬ LÝ MAP PICK & DECIDER ---
+                const pickedMapsCount = selectedMaps.filter(m => m.pickedBy !== undefined && m.pickedBy !== -1).length;
+                const isBO3DeciderPick = format === 'bo3' && pickedMapsCount === 2;
+                const isBO5DeciderPick = (format === 'bo5_ww' || format === 'bo5_wl') && pickedMapsCount === 4;
+                const isDeciderPick = isBO3DeciderPick || isBO5DeciderPick;
 
                 if (isDeciderPick) {
-                    // Decider map pick. Omit 'pickedBy' property.
+                    // Decider map pick - don't set pickedBy (same behavior for BO3 and BO5)
                     selectedMaps.push(newMap); 
                     
                     console.log(`Map ${map} is the Decider Map! (No pickedBy property set)`);
                     
-                    // Hành động tiếp theo là chọn side Decider
-                    const sequence = banPickSequence[format];
-                    const nextAction = sequence[8]; 
-                    
-                    // **SỬA ĐỔI Ở ĐÂY:** Đặt team chọn side là Team 1 (index 0)
+                    // Choose decider side picker based on format
+                    const deciderTeam = (format === 'bo5_ww' || format === 'bo5_wl') ? 1 : 0; // Team 2 for BO5, Team 1 for BO3
                     currentSession.currentAction = {
                         stage: 'decider', 
-                        team: 0, // Team 1 (index 0) chọn side theo yêu cầu mới
+                        team: deciderTeam,
                         mapName: map,
-                        description: `Team 1 chooses side for ${map} (Decider)`
+                        description: `Team ${deciderTeam + 1} chooses side for ${map} (Decider)`
                     };
                 } else {
-                    // Logic pick bình thường
+                    // Normal pick logic (non-decider maps)
                     newMap.pickedBy = currentTeam;
                     selectedMaps.push(newMap);
                     
@@ -560,12 +565,12 @@
                     {
                         name: document.getElementById('team1Name').value,
                         tricode: document.getElementById('team1Tricode').value,
-                        url: document.getElementById('team1Url').value
+                        url: ""  // Default team 1 icon
                     },
                     {
                         name: document.getElementById('team2Name').value,
                         tricode: document.getElementById('team2Tricode').value,
-                        url: document.getElementById('team2Url').value
+                        url: ""  // Default team 2 icon
                     }
                 ],
                 format: format,
@@ -601,11 +606,9 @@
         function updateUI(data) {
             document.getElementById('team1Name').value = data.teams[0].name;
             document.getElementById('team1Tricode').value = data.teams[0].tricode;
-            document.getElementById('team1Url').value = data.teams[0].url;
             
             document.getElementById('team2Name').value = data.teams[1].name;
             document.getElementById('team2Tricode').value = data.teams[1].tricode;
-            document.getElementById('team2Url').value = data.teams[1].url;
             
             document.getElementById('format').value = data.format;
             
