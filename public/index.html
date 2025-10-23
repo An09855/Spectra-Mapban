@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapban Control Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .map-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .map-card {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .map-card.available {
+            cursor: pointer;
+            border: 2px solid #4CAF50;
+        }
+        .map-card.available:hover {
+            background-color: #f5f5f5;
+            transform: translateY(-2px);
+        }
+        .banned {
+            background-color: #ffebee;
+            opacity: 0.8;
+            border: 2px solid #f44336;
+        }
+        .picked {
+            background-color: #e8f5e9;
+            border: 2px solid #2196F3;
+        }
+        .map-card::after {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+        .map-card[data-status^="banned-team"]::after {
+            content: attr(data-status);
+            background-color: #f44336;
+            color: white;
+        }
+        .map-card[data-status^="picked-team"]::after {
+            content: attr(data-status);
+            background-color: #2196F3;
+            color: white;
+        }
+        .map-card[data-status="decider"]::after {
+            content: 'Decider';
+            background-color: #fd7e14;
+            color: white;
+        }
+        .map-action {
+            text-align: center;
+            color: #666;
+            margin: 5px 0;
+        }
+        .side-selection {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border: 2px solid #6f42c1;
+        }
+        .map-card.picked .side-selection {
+            background-color: #e3f2fd;
+        }
+        .side-selection select {
+            margin-top: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        body {
+            padding: 20px;
+        }
+        .current-action-banner {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Mapban Control Panel</h1>
+        
+        <div id="currentActionBanner" class="current-action-banner">
+            Team 1 is banning a map...
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col">
+                <h3>Session Control</h3>
+                <div class="input-group mb-3">
+                    <input type="text" id="sessionId" class="form-control" placeholder="Session ID" value="UNKNOWN">
+                    <button class="btn btn-primary" onclick="loadSession()">Load Session</button>
+                    <button class="btn btn-success" onclick="updateSession()">Update Session</button>
+                    <button class="btn btn-danger" onclick="resetSession()">Reset Session</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <h3>Team 1</h3>
+                <div class="mb-3">
+                    <label>Name:</label>
+                    <input type="text" id="team1Name" class="form-control" value="Team 1">
+                </div>
+                <div class="mb-3">
+                    <label>Tricode:</label>
+                    <input type="text" id="team1Tricode" class="form-control" value="T1">
+                </div>
+                <div class="mb-3">
+                    <label>Logo URL:</label>
+                    <input type="text" id="team1Url" class="form-control" value="/assets/misc/icon.webp">
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <h3>Team 2</h3>
+                <div class="mb-3">
+                    <label>Name:</label>
+                    <input type="text" id="team2Name" class="form-control" value="Team 2">
+                </div>
+                <div class="mb-3">
+                    <label>Tricode:</label>
+                    <input type="text" id="team2Tricode" class="form-control" value="T2">
+                </div>
+                <div class="mb-3">
+                    <label>Logo URL:</label>
+                    <input type="text" id="team2Url" class="form-control" value="/assets/misc/icon.webp">
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col">
+                <h3>Match Settings</h3>
+                <div class="mb-3">
+                    <label>Format:</label>
+                    <select id="format" class="form-control">
+                        <option value="bo1">Best of 1</option>
+                        <option value="bo3" selected>Best of 3</option>
+                        <option value="bo5">Best of 5</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Stage:</label>
+                    <select id="stage" class="form-control" disabled>
+                        <option value="ban" selected>Ban</option>
+                        <option value="pick">Pick</option>
+                        <option value="side">Side Selection</option>
+                        <option value="complete">Complete</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Acting Team:</label>
+                    <select id="actingTeam" class="form-control" disabled>
+                        <option value="0">Team 1</option>
+                        <option value="1">Team 2</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col">
+                <h3>Maps</h3>
+                <div id="mapGrid" class="map-grid">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const maps = ["Bind", "Haven", "Split", "Sunset", "Pearl", "Abyss", "Corrode"];
+        let currentSession = null;
+
+        const banPickSequence = {
+            bo3: [
+                { stage: 'ban', team: 0, description: 'Team 1 bans' },           // 0
+                { stage: 'ban', team: 1, description: 'Team 2 bans' },           // 1
+                { stage: 'pick', team: 0, description: 'Team 1 picks map' },     // 2
+                { stage: 'side', team: 1, description: 'Team 2 picks side' },    // 3
+                { stage: 'pick', team: 1, description: 'Team 2 picks map' },     // 4
+                { stage: 'side', team: 0, description: 'Team 1 picks side' },    // 5
+                { stage: 'ban', team: 0, description: 'Team 1 bans (Final)' },   // 6
+                { stage: 'ban', team: 1, description: 'Team 2 bans (Final)' },   // 7
+                { stage: 'pick', team: 1, description: 'Team 1 picks map' }      // 8 - Decider Pick (Team 1 picks map)
+            ],
+            bo5: [
+                { stage: 'ban', team: 0, description: 'Team 1 bans' },
+                { stage: 'ban', team: 1, description: 'Team 2 bans' },
+                { stage: 'pick', team: 0, description: 'Team 1 picks' },
+                { stage: 'side', team: 1, description: 'Team 2 picks side' },
+                { stage: 'pick', team: 1, description: 'Team 2 picks' },
+                { stage: 'side', team: 0, description: 'Team 1 picks side' },
+                { stage: 'pick', team: 0, description: 'Team 1 picks' },
+                { stage: 'side', team: 1, description: 'Team 2 picks side' },
+                { stage: 'pick', team: 1, description: 'Team 2 picks' },
+                { stage: 'side', team: 0, description: 'Team 1 picks side' },
+                { stage: 'decider', team: 0, description: 'Decider map - Team 1 picks side' }
+            ]
+        };
+
+        function createMapGrid() {
+            const grid = document.getElementById('mapGrid');
+            grid.innerHTML = '';
+
+            // Get current session data
+            const session = currentSession || {
+                currentAction: { stage: 'ban', team: 0 },
+                selectedMaps: []
+            };
+
+            // Always show all maps
+            let mapsToShow = maps;
+
+            mapsToShow.forEach((map, index) => {
+                const card = document.createElement('div');
+                const selectedMap = session.selectedMaps.find(m => m.name === map);
+                
+                card.className = 'map-card';
+                if (selectedMap) {
+                    if (selectedMap.bannedBy !== undefined && selectedMap.bannedBy !== -1) {
+                        card.className += ' banned';
+                        card.setAttribute('data-status', `banned-team-${selectedMap.bannedBy + 1}`);
+                    } else if (selectedMap.pickedBy !== undefined || selectedMap.sidePickedBy !== undefined) {
+                        card.className += ' picked';
+
+                        let statusText = '';
+                        // Decider map được xác định là không có pickedBy HOẶC pickedBy = -1
+                        const isDecider = selectedMap.pickedBy === -1 || selectedMap.pickedBy === undefined; 
+
+                        if (!isDecider && selectedMap.pickedBy !== undefined) {
+                            // Pick bình thường
+                            statusText = `picked-team-${selectedMap.pickedBy + 1}`;
+                        } else if (isDecider) {
+                            // Map Decider (BO5 hoặc BO3 map cuối)
+                            statusText = 'decider';
+                        }
+                        
+                        if (statusText) {
+                            card.setAttribute('data-status', statusText);
+                        }
+                    }
+                } else if (session.currentAction.stage !== 'side' && session.currentAction.stage !== 'complete' && session.currentAction.stage !== 'decider') {
+                    card.className += ' available';
+                }
+
+                let cardContent = `<h4>${map}</h4>`;
+
+                // Show map status if it's been picked or banned
+                if (selectedMap) {
+                    if (selectedMap.bannedBy !== undefined && selectedMap.bannedBy !== -1) {
+                        cardContent += `<p class="map-action">Banned by Team ${selectedMap.bannedBy + 1}</p>`;
+                    } else if (selectedMap.pickedBy !== undefined || selectedMap.sidePickedBy !== undefined) {
+                        // Hiển thị trạng thái cho map đã pick (bao gồm decider)
+                        const isDecider = selectedMap.pickedBy === -1 || selectedMap.pickedBy === undefined;
+                        
+                        if (isDecider) {
+                            cardContent += `<p class="map-action">Decider Map</p>`;
+                        } else {
+                            cardContent += `<p class="map-action">Picked by Team ${selectedMap.pickedBy + 1}</p>`;
+                        }
+                        
+                        if (selectedMap.sidePickedBy !== undefined) {
+                            const side = selectedMap.pickedAttack ? 'Attack' : 'Defense';
+                            cardContent += `<p class="map-action">Team ${selectedMap.sidePickedBy + 1} chose ${side}</p>`;
+                        }
+                    }
+                } else {
+                    cardContent += `<p class="map-action">Click to select</p>`;
+                }
+                
+                card.innerHTML = cardContent;
+
+                // Add side selection if waiting for side selection or decider
+                const isCurrentActionMap = (session.currentAction.stage === 'side' || session.currentAction.stage === 'decider') && 
+                    map === session.currentAction.mapName;
+                
+                const needsSideSelection = selectedMap && 
+                    selectedMap.sidePickedBy === undefined; 
+
+                if (needsSideSelection && isCurrentActionMap) {
+                    const sideDiv = document.createElement('div');
+                    sideDiv.className = 'side-selection';
+                    // Decider map là map không có pickedBy HOẶC pickedBy = -1
+                    const isDecider = selectedMap.pickedBy === -1 || selectedMap.pickedBy === undefined; 
+
+                    sideDiv.innerHTML = `
+                        <p style="margin: 5px 0; font-weight: bold; color: ${isDecider ? '#fd7e14' : '#6f42c1'};">
+                            ${isDecider ? '🎯 ' : ''}Team ${session.currentAction.team + 1} - Choose Side${isDecider ? ' (Decider)' : ''}:
+                        </p>
+                        <select class="form-control map-side" data-map="${map}">
+                            <option value="">Select Side</option>
+                            <option value="${session.currentAction.team}-true">Attack</option>
+                            <option value="${session.currentAction.team}-false">Defense</option>
+                        </select>
+                    `;
+                    card.appendChild(sideDiv);
+                    
+                    // Add change event listener to side selection
+                    const sideSelect = sideDiv.querySelector('.map-side');
+                    if (sideSelect) {
+                        sideSelect.addEventListener('change', (e) => {
+                            e.stopPropagation(); // Prevent card click
+                            handleSideSelection(map, e.target.value);
+                        });
+                    }
+                }
+
+                // ONLY add click event if map can be selected
+                const isMapSelected = session.selectedMaps.some(m => m.name === map);
+                const canSelectMap = !isMapSelected && 
+                              (session.currentAction.stage === 'ban' || 
+                               session.currentAction.stage === 'pick');
+
+                if (canSelectMap) {
+                    card.addEventListener('click', (e) => {
+                        // Prevent click if clicking on select dropdown
+                        if (e.target.tagName === 'SELECT') return;
+                        handleMapSelection(map);
+                    });
+                }
+                
+                grid.appendChild(card);
+            });
+        }
+
+        function handleMapSelection(map) {
+            // Initialize currentSession if it doesn't exist
+            if (!currentSession) {
+                currentSession = {
+                    selectedMaps: [],
+                    currentAction: { stage: 'ban', team: 0 }
+                };
+            }
+
+            // Check if map is already selected
+            if (currentSession.selectedMaps.some(m => m.name === map)) {
+                console.log(`Map ${map} is already selected`);
+                return;
+            }
+
+            const selectedMaps = [...currentSession.selectedMaps];
+            const format = document.getElementById('format').value;
+            const currentStage = currentSession.currentAction.stage;
+            const currentTeam = currentSession.currentAction.team;
+
+            // Create new map data
+            const newMap = { name: map };
+            
+            if (currentStage === 'ban') {
+                newMap.bannedBy = currentTeam;
+                selectedMaps.push(newMap);
+                
+                const banCount = selectedMaps.filter(m => m.bannedBy !== undefined && m.bannedBy !== -1).length;
+                const phase = banCount <= 2 ? 'First' : 'Final';
+                console.log(`Map ${map} banned by Team ${currentTeam + 1} (${phase} Ban Phase)`);
+                
+                // Get next action from sequence
+                const sequence = banPickSequence[format];
+                
+                // Calculate next index based on completed actions
+                const picksWithSidesCount = selectedMaps.filter(m => 
+                    m.pickedBy !== undefined && 
+                    m.pickedBy !== -1 && 
+                    m.sidePickedBy !== undefined
+                ).length;
+                
+                // Each ban = 1 action, each pick with side = 2 actions
+                const completedActions = banCount + (picksWithSidesCount * 2);
+                const nextIndex = completedActions;
+                
+                console.log(`After ban - Completed actions: ${completedActions}, Next index: ${nextIndex}`);
+                
+                if (nextIndex < sequence.length) {
+                    currentSession.currentAction = sequence[nextIndex];
+                    console.log(`Next action:`, currentSession.currentAction);
+                } else {
+                    currentSession.currentAction = { stage: 'complete', team: -1 };
+                }
+            } else if (currentStage === 'pick') {
+                
+                // --- LOGIC XỬ LÝ MAP DECIDER (BO3) ---
+                const pickedMapsCount = selectedMaps.filter(m => m.pickedBy !== undefined).length;
+                const isDeciderPick = format === 'bo3' && pickedMapsCount === 2; 
+
+                if (isDeciderPick) {
+                    // Decider map pick. Omit 'pickedBy' property.
+                    selectedMaps.push(newMap); 
+                    
+                    console.log(`Map ${map} is the Decider Map! (No pickedBy property set)`);
+                    
+                    // Hành động tiếp theo là chọn side Decider
+                    const sequence = banPickSequence[format];
+                    const nextAction = sequence[8]; 
+                    
+                    // **SỬA ĐỔI Ở ĐÂY:** Đặt team chọn side là Team 1 (index 0)
+                    currentSession.currentAction = {
+                        stage: 'decider', 
+                        team: 0, // Team 1 (index 0) chọn side theo yêu cầu mới
+                        mapName: map,
+                        description: `Team 1 chooses side for ${map} (Decider)`
+                    };
+                } else {
+                    // Logic pick bình thường
+                    newMap.pickedBy = currentTeam;
+                    selectedMaps.push(newMap);
+                    
+                    console.log(`Map ${map} picked by Team ${currentTeam + 1}`);
+                    
+                    // Move to side selection for the opposite team
+                    const oppositeTeam = currentTeam === 0 ? 1 : 0;
+                    
+                    currentSession.currentAction = {
+                        stage: 'side',
+                        team: oppositeTeam,
+                        mapName: map,
+                        description: `Team ${oppositeTeam + 1} picks side`
+                    };
+                }
+                // --- KẾT THÚC LOGIC XỬ LÝ MAP DECIDER ---
+            }
+
+            // Update the session data
+            const sessionData = {
+                ...getSessionData(),
+                selectedMaps: selectedMaps,
+                currentAction: currentSession.currentAction
+            };
+
+            // Update session through API
+            const sessionId = document.getElementById('sessionId').value;
+            fetch(`/api/sessions/${sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(sessionData)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    currentSession = sessionData;
+                    updateUI(sessionData);
+                    createMapGrid();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating session:', error);
+            });
+        }
+
+        function handleSideSelection(map, sideValue) {
+            if (!currentSession || !sideValue) return;
+
+            const selectedMaps = [...currentSession.selectedMaps];
+            // Tìm đối tượng map trong mảng selectedMaps
+            const selectedMap = selectedMaps.find(m => m.name === map);
+            
+            if (selectedMap) {
+                const [team, attack] = sideValue.split('-');
+                
+                // Thêm/Cập nhật sidePickedBy và pickedAttack cho đối tượng map được tìm thấy
+                selectedMap.sidePickedBy = parseInt(team);
+                selectedMap.pickedAttack = attack === 'true';
+                
+                console.log(`Side selected for ${map}: Team ${parseInt(team) + 1} will ${attack === 'true' ? 'Attack' : 'Defend'}`);
+                
+                const format = document.getElementById('format').value;
+                const sequence = banPickSequence[format];
+                
+                // Kiểm tra xem đây có phải là bước chọn side cuối cùng (decider stage)
+                if (currentSession.currentAction.stage === 'decider') {
+                    // Kết thúc quá trình chọn map
+                    currentSession.currentAction = { stage: 'complete', team: -1 };
+                } else {
+                    // Tính hành động tiếp theo cho map pick/side bình thường
+                    const bansCount = selectedMaps.filter(m => m.bannedBy !== undefined && m.bannedBy !== -1).length;
+                    
+                    // Tính số lượng map đã được hoàn thành Pick + Side (chỉ tính pick/side bình thường)
+                    const picksWithSidesCount = selectedMaps.filter(m => 
+                        m.pickedBy !== undefined && 
+                        m.pickedBy !== -1 && 
+                        m.sidePickedBy !== undefined
+                    ).length;
+                    
+                    const completedActions = bansCount + (picksWithSidesCount * 2);
+                    const nextIndex = completedActions;
+                    
+                    console.log(`Completed actions: ${completedActions}, Next index: ${nextIndex}`);
+                    
+                    if (nextIndex < sequence.length) {
+                        const nextAction = sequence[nextIndex];
+                        console.log(`Next action:`, nextAction);
+                        
+                        currentSession.currentAction = nextAction;
+                    } else {
+                        currentSession.currentAction = { stage: 'complete', team: -1 };
+                    }
+                }
+
+                // Update session through API
+                const sessionId = document.getElementById('sessionId').value;
+                const sessionData = {
+                    ...getSessionData(),
+                    selectedMaps: selectedMaps,
+                    currentAction: currentSession.currentAction
+                };
+                
+                fetch(`/api/sessions/${sessionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(sessionData)
+                })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        currentSession = sessionData;
+                        updateUI(sessionData);
+                        console.log(`Side selection updated for ${map}: Team ${parseInt(team) + 1} will ${attack === 'true' ? 'Attack' : 'Defend'}`);
+                        createMapGrid();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating side selection:', error);
+                });
+            }
+        }
+
+        function getSessionData() {
+            const format = document.getElementById('format').value;
+            
+            // Get next action based on current session state
+            const nextAction = currentSession ? currentSession.currentAction : { stage: 'ban', team: 0 };
+
+            return {
+                sessionIdentifier: document.getElementById('sessionId').value,
+                organizationName: "Spectra",
+                teams: [
+                    {
+                        name: document.getElementById('team1Name').value,
+                        tricode: document.getElementById('team1Tricode').value,
+                        url: document.getElementById('team1Url').value
+                    },
+                    {
+                        name: document.getElementById('team2Name').value,
+                        tricode: document.getElementById('team2Tricode').value,
+                        url: document.getElementById('team2Url').value
+                    }
+                ],
+                format: format,
+                availableMaps: maps.map(name => ({ name })),
+                selectedMaps: currentSession ? currentSession.selectedMaps : [],
+                currentAction: nextAction,
+                actingTeam: nextAction.team,
+                actingTeamCode: nextAction.team === 0 
+                    ? document.getElementById('team1Tricode').value 
+                    : document.getElementById('team2Tricode').value
+            };
+        }
+
+        function loadSession() {
+            const sessionId = document.getElementById('sessionId').value;
+            fetch(`/api/sessions`)
+                .then(res => res.json())
+                .then(sessions => {
+                    const session = sessions.find(s => s.id === sessionId);
+                    if (session) {
+                        currentSession = session.data;
+                        updateUI(session.data);
+                    } else {
+                        alert('Session not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading session:', error);
+                    alert('Error loading session');
+                });
+        }
+
+        function updateUI(data) {
+            document.getElementById('team1Name').value = data.teams[0].name;
+            document.getElementById('team1Tricode').value = data.teams[0].tricode;
+            document.getElementById('team1Url').value = data.teams[0].url;
+            
+            document.getElementById('team2Name').value = data.teams[1].name;
+            document.getElementById('team2Tricode').value = data.teams[1].tricode;
+            document.getElementById('team2Url').value = data.teams[1].url;
+            
+            document.getElementById('format').value = data.format;
+            
+            // Update stage and acting team based on current state
+            const currentStage = data.currentAction ? data.currentAction.stage : 'ban';
+            document.getElementById('stage').value = currentStage;
+            document.getElementById('actingTeam').value = data.currentAction ? data.currentAction.team.toString() : '0';
+
+            // Update status banner
+            updateStatusBanner(data);
+
+            // Create new map grid with updated data
+            createMapGrid();
+        }
+
+        function updateStatusBanner(data) {
+            const banner = document.getElementById('currentActionBanner');
+            if (!banner || !data.currentAction) return;
+
+            const teamIndex = data.currentAction.team;
+            const team = teamIndex >= 0 ? data.teams[teamIndex].name : '';
+            let actionText = '';
+            
+            if (data.currentAction.stage === 'ban') {
+                const banCount = data.selectedMaps.filter(m => m.bannedBy !== undefined && m.bannedBy !== -1).length;
+                const isFinalBans = banCount >= 2;
+                actionText = `${team} is banning a map... ${isFinalBans ? '(Final Bans)' : '(First Bans)'}`;
+                banner.style.backgroundColor = '#dc3545';
+            } else if (data.currentAction.stage === 'pick') {
+                actionText = `${team} is picking a map...`;
+                banner.style.backgroundColor = '#007bff';
+            } else if (data.currentAction.stage === 'side') {
+                const mapName = data.currentAction.mapName || '';
+                actionText = `${team} is choosing side for ${mapName}...`;
+                banner.style.backgroundColor = '#6f42c1';
+            } else if (data.currentAction.stage === 'decider') {
+                const mapName = data.currentAction.mapName || 'decider';
+                actionText = `${team} is choosing side for ${mapName} (Decider)...`;
+                banner.style.backgroundColor = '#fd7e14';
+            } else if (data.currentAction.stage === 'complete') {
+                actionText = 'Map selection is complete!';
+                banner.style.backgroundColor = '#28a745';
+            }
+            
+            banner.textContent = actionText;
+        }
+
+        function updateSession() {
+            const sessionId = document.getElementById('sessionId').value;
+            const data = getSessionData();
+
+            fetch(`/api/sessions/${sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Session updated successfully');
+                    currentSession = data;
+                    updateUI(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating session:', error);
+                alert('Error updating session');
+            });
+        }
+
+        function resetSession() {
+            if (!confirm('Are you sure you want to reset the session?')) return;
+            
+            currentSession = {
+                selectedMaps: [],
+                currentAction: { stage: 'ban', team: 0 }
+            };
+            
+            const sessionData = getSessionData();
+            const sessionId = document.getElementById('sessionId').value;
+            
+            fetch(`/api/sessions/${sessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(sessionData)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    updateUI(sessionData);
+                    alert('Session reset successfully');
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting session:', error);
+                alert('Error resetting session');
+            });
+        }
+
+        // Initialize the UI
+        createMapGrid();
+    </script>
+</body>
+</html>
